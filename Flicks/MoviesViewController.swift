@@ -8,22 +8,33 @@
 
 import UIKit
 import AFNetworking
+import MBProgressHUD
 
 class MoviesViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
 
     @IBOutlet weak var tableView: UITableView!
     
+    @IBOutlet weak var errorMessage: UIView!
     var movies: [NSDictionary]?
     //var refreshControl: UIRefreshControl
     var endpoint: String = "now_playing"
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        self.errorMessage.hidden = true
 
         tableView.dataSource = self
         tableView.delegate = self
+        
+        loadDataAsync()
+        
+        let refreshControl = UIRefreshControl()
+        refreshControl.addTarget(self, action: #selector(MoviesViewController.refreshControlAction(_:)), forControlEvents: UIControlEvents.ValueChanged)
+        tableView.insertSubview(refreshControl, atIndex: 0)
+        
         // Do any additional setup after loading the view.
-        let apiKey="a07e22bc18f5cb106bfe4cc1f83ad8ed"
+        /*let apiKey="a07e22bc18f5cb106bfe4cc1f83ad8ed"
         let url = NSURL(string: "https://api.themoviedb.org/3/movie/\(endpoint)?api_key=\(apiKey)")
         let request = NSURLRequest(URL: url!)
         let session = NSURLSession(configuration: NSURLSessionConfiguration.defaultSessionConfiguration(), delegate: nil, delegateQueue: NSOperationQueue.mainQueue())
@@ -43,8 +54,52 @@ class MoviesViewController: UIViewController, UITableViewDataSource, UITableView
                 }
             });
             task.resume()
+         */
+   
         
         
+        
+    }
+    
+    func loadDataAsync(){
+        
+        let apiKey = "a07e22bc18f5cb106bfe4cc1f83ad8ed"
+        let url = NSURL(string: "https://api.themoviedb.org/3/movie/\(endpoint)?api_key=\(apiKey)")
+        let myRequest = NSURLRequest(
+            URL: url!,
+            cachePolicy: NSURLRequestCachePolicy.ReloadIgnoringLocalCacheData,
+            timeoutInterval: 10)
+        
+        let session = NSURLSession(
+            configuration: NSURLSessionConfiguration.defaultSessionConfiguration(),
+            delegate:nil,
+            delegateQueue:NSOperationQueue.mainQueue()
+        )
+        
+        MBProgressHUD.showHUDAddedTo(self.view, animated: true)
+        
+        let task : NSURLSessionDataTask = session.dataTaskWithRequest(myRequest,
+                   completionHandler: { (dataOrNil, response, error) in
+                   // Hide HUD once the network request comes back
+                    MBProgressHUD.hideHUDForView(self.view, animated: true)
+                   // json parsing
+                   if let data = dataOrNil {
+                       if let responseDictionary = try! NSJSONSerialization.JSONObjectWithData(
+                               data, options:[]) as? NSDictionary {
+                                self.movies = responseDictionary["results"] as? [NSDictionary]
+                                 dispatch_async(dispatch_get_main_queue(), {self.tableView.reloadData()})
+                    }
+                   }else{
+                    self.errorMessage.hidden = false
+                    }
+                    
+        });
+        task.resume()
+    }
+    
+    func refreshControlAction(refreshControl: UIRefreshControl){
+        loadDataAsync()
+        refreshControl.endRefreshing()
     }
 
     override func didReceiveMemoryWarning() {
