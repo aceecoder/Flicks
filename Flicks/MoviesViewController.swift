@@ -16,13 +16,20 @@ class MoviesViewController: UIViewController, UITableViewDataSource, UITableView
     
     @IBOutlet weak var errorMessage: UIView!
     var movies: [NSDictionary]?
-    //var refreshControl: UIRefreshControl
-    var endpoint: String = "now_playing"
+
+    var endpoint: String = "now_playing" {
+        didSet {
+            let title = (endpoint == "top_rated") ? "Top Rated" : "Now Playing"
+            navigationController?.tabBarItem.title = title
+            navigationController?.tabBarItem.image = UIImage(named: endpoint)
+            self.title = title
+        }
+    }
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        self.errorMessage.hidden = true
+
+        errorMessage.hidden = true
 
         tableView.dataSource = self
         tableView.delegate = self
@@ -30,7 +37,7 @@ class MoviesViewController: UIViewController, UITableViewDataSource, UITableView
         loadDataAsync()
         
         let refreshControl = UIRefreshControl()
-        refreshControl.addTarget(self, action: #selector(MoviesViewController.refreshControlAction(_:)), forControlEvents: UIControlEvents.ValueChanged)
+        refreshControl.addTarget(self, action: #selector(refreshControlAction(_:)), forControlEvents: .ValueChanged)
         tableView.insertSubview(refreshControl, atIndex: 0)
         
         // Do any additional setup after loading the view.
@@ -78,22 +85,26 @@ class MoviesViewController: UIViewController, UITableViewDataSource, UITableView
         
         MBProgressHUD.showHUDAddedTo(self.view, animated: true)
         
-        let task : NSURLSessionDataTask = session.dataTaskWithRequest(myRequest,
-                   completionHandler: { (dataOrNil, response, error) in
-                   // Hide HUD once the network request comes back
-                    MBProgressHUD.hideHUDForView(self.view, animated: true)
-                   // json parsing
-                   if let data = dataOrNil {
-                       if let responseDictionary = try! NSJSONSerialization.JSONObjectWithData(
-                               data, options:[]) as? NSDictionary {
-                                self.movies = responseDictionary["results"] as? [NSDictionary]
-                                 dispatch_async(dispatch_get_main_queue(), {self.tableView.reloadData()})
-                    }
-                   }else{
-                    self.errorMessage.hidden = false
-                    }
+        let task = session.dataTaskWithRequest(myRequest) { data, response, error in
+            // Hide HUD once the network request comes back
+            MBProgressHUD.hideHUDForView(self.view, animated: true)
+            
+            // json parsing
+            do {
+                if let data = data,
+                    responseDictionary = try NSJSONSerialization.JSONObjectWithData(data, options:[]) as? NSDictionary {
+                    self.movies = responseDictionary["results"] as? [NSDictionary]
                     
-        });
+                    dispatch_async(dispatch_get_main_queue()) {
+                        self.tableView.reloadData()
+                    }
+                } else {
+                    self.errorMessage.hidden = false
+                }
+            } catch {
+                self.errorMessage.hidden = false
+            }
+        }
         task.resume()
     }
     
